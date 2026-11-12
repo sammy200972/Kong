@@ -1,294 +1,192 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-<meta name="theme-color" content="#071222" />
-<title>KONG 3D – Retro-Plattformer für Meta Quest 3</title>
-<style>
-:root { color-scheme:dark; --line:#55718f; --accent:#ffce6b; }
-*{box-sizing:border-box} html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#071222;font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#fff}
-#renderCanvas{width:100%;height:100%;display:block;touch-action:none;outline:0}
-#hud{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;background:linear-gradient(#081521e8,#08152177);pointer-events:none;z-index:4}
-.brand{font-weight:950;font-size:clamp(17px,2vw,26px);letter-spacing:.08em;color:var(--accent);text-shadow:0 2px 22px #c5792e99}
-.mini{font-size:11px;letter-spacing:.13em;color:#8ac3ef}
-#numbers{display:flex;gap:clamp(9px,2vw,28px);align-items:center;font-size:clamp(12px,1.15vw,16px);font-weight:700;font-variant-numeric:tabular-nums}
-#numbers b{color:#fff}.numLabel{color:#93b6c6;font-size:10px;letter-spacing:.1em;display:block}
-#tools{display:flex;gap:8px;pointer-events:auto}
-button{cursor:pointer;color:#fff;border:1px solid #6d95b299;background:#102640c7;border-radius:10px;font-weight:750;padding:10px 13px;white-space:nowrap;transition:background .15s}
-button:hover{background:#254a69}button:focus-visible{outline:2px solid #ffe7a3}
-button.primary{background:linear-gradient(140deg,#fd9743,#ec5347);border:0;color:#170d15;box-shadow:0 3px 22px #f4723790}
-#bottom{position:fixed;z-index:3;left:50%;bottom:14px;transform:translateX(-50%);width:max-content;max-width:calc(100vw - 20px);color:#c6deeb;padding:8px 14px;background:#071725bd;border:1px solid #54708b6e;border-radius:11px;text-align:center;font-size:12px;pointer-events:none}
-#toast{position:fixed;z-index:9;top:18%;left:50%;transform:translateX(-50%);padding:13px 23px;background:#14283be8;border:1px solid #ffd58b;border-radius:14px;opacity:0;transition:opacity .15s;pointer-events:none;font-weight:700;box-shadow:0 15px 45px #0009;text-align:center;max-width:min(86vw,640px)}
-#menu{position:fixed;inset:0;z-index:7;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 42%,#203d55a9,#020713ef);padding:22px;overflow-y:auto}
-#menu.hidden{display:none}.panel{width:min(620px,100%);border:1px solid #759aba88;background:linear-gradient(145deg,#142c44eb,#09131fee);box-shadow:0 26px 100px #000b;border-radius:21px;padding:clamp(22px,4vw,40px);text-align:center}
-.panel h1{font-size:clamp(35px,7vw,67px);line-height:1.03;letter-spacing:.035em;margin:6px 0 8px;color:#ffce6b;text-shadow:0 5px 24px #da563a7d}
-.panel .sub{font-size:16px;color:#afd5ed;letter-spacing:.16em;margin-bottom:20px}
-.panel p{color:#d8e5ef;line-height:1.6;margin:10px 0}.panel .note{color:#9abbd2;font-size:12px}
-.panel .actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:20px auto}
-.panel button{padding:13px 24px;font-size:15px}.stageRow{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:20px 0}
-.stageItem{padding:12px 7px;border:1px solid #38617d;border-radius:12px;background:#0d2638}.stageItem strong{display:block;color:#ffdc99}.stageItem span{font-size:12px;color:#aec4d6}
-#touch{display:none;position:fixed;inset:auto 0 68px;z-index:5;justify-content:space-between;padding:0 18px;pointer-events:none}
-#touch button{pointer-events:auto;width:55px;height:55px;border-radius:18px;background:#123655d5;font-size:22px;touch-action:none}
-#touch .group{display:flex;gap:8px}
-@media (max-width:780px){#hud{padding:7px 9px;gap:5px;flex-wrap:wrap}#hud .brand{font-size:16px}#numbers{gap:12px;font-size:12px}#tools button{padding:8px 8px;font-size:11px}#bottom{display:none}#touch{display:flex}.mini{display:none}}
-</style>
-<script src="https://cdn.babylonjs.com/babylon.js"></script>
-</head>
-<body>
-<canvas id="renderCanvas"></canvas>
-<header id="hud"><div><div class="brand">KONG <span style="color:#8bd9ff">3D</span></div><div class="mini">RETRO CONSTRUCTION RESCUE</div></div><div id="numbers"><div><span class="numLabel">PUNKTE</span><b id="score">000000</b></div><div><span class="numLabel">LEBEN</span><b id="lives">♥ ♥ ♥</b></div><div><span class="numLabel">ABSCHNITT</span><b id="stage">1 / 3</b></div><div><span class="numLabel">ZEITBONUS</span><b id="bonus">5000</b></div></div><div id="tools"><button id="camBtn" title="Kamera wechseln (C)">◉ Third Person</button><button id="pauseBtn" title="Pause (P)">Ⅱ</button><button id="vrBtn" class="primary" title="VR in Meta Quest Browser">VR starten</button></div></header>
-<div id="bottom">← → / A D bewegen · ↑ ↓ / W S Leiter/Aufzug · Leertaste springen · C Perspektive · P Pause · Quest: Stick, Trigger, Griff</div>
-<div id="toast" role="status"></div>
-<div id="touch"><div class="group"><button data-t="left" aria-label="Links">◀</button><button data-t="right" aria-label="Rechts">▶</button><button data-t="up" aria-label="Leiter hoch">▲</button><button data-t="down" aria-label="Leiter runter">▼</button></div><div class="group"><button data-t="jump" aria-label="Springen">⤒</button><button data-t="camera" aria-label="Kamera">◉</button></div></div>
-<div id="menu"><div class="panel"><div class="mini">EINE 3D-HOMMAGE AN DEN NES-KLASSIKER</div><h1>KONG 3D</h1><div class="sub">CONSTRUCTION RESCUE</div><p>Klettere durch das Stahlgerüst, überspringe rollende Fässer, nutze die Aufzüge und löse im Finale alle acht Nieten. Rette die Person an der Spitze!</p><div class="stageRow"><div class="stageItem"><strong>01 · STAHL</strong><span>Fässer &amp; Leitern</span></div><div class="stageItem"><strong>02 · AUFZÜGE</strong><span>Lifte &amp; Hindernisse</span></div><div class="stageItem"><strong>03 · NIETEN</strong><span>8 Stifte entfernen</span></div></div><div class="actions"><button class="primary" id="startBtn">▶ Spiel starten</button><button id="menuCamBtn">◉ First / Third Person</button></div><p class="note">Für Meta Quest 3: HTML über HTTPS (z. B. GitHub Pages) öffnen, im Quest-Browser auf „VR starten“ tippen. Controller: linker Stick bewegen/klettern, rechter Trigger springen, Griff Kamera wechseln.</p><p class="note">Eigenständige, nicht offizielle Fan-Hommage mit neu erzeugten 3D-Modellen, ohne Originalgrafiken oder Originalmusik. Benötigt eine Internetverbindung für Babylon.js.</p></div></div>
-<script>
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"><meta name="theme-color" content="#091426"><title>KONG 3D – Quest 3 – Offlinefähige Version 2</title><style>
+*{box-sizing:border-box}html,body{height:100%;width:100%;margin:0;overflow:hidden;background:#061121;color:#fff;font-family:system-ui,Arial,sans-serif}#game{display:block;height:100%;width:100%;touch-action:none}#hud{position:fixed;top:0;left:0;right:0;display:flex;gap:12px;justify-content:space-between;align-items:center;padding:9px 14px;background:linear-gradient(#061424f2,#06142465);pointer-events:none;z-index:5}.brand{font-size:clamp(15px,2.2vw,27px);font-weight:950;letter-spacing:.1em;color:#ffd075}.brand span{color:#8de1ff}.subtext{font-size:10px;color:#8ab9d0;letter-spacing:.12em}#numbers{display:flex;align-items:center;gap:clamp(7px,2vw,26px);font-weight:700;font-size:clamp(12px,1.2vw,17px)}.lab{display:block;font-size:10px;color:#9ab5cb}#tools{pointer-events:auto;display:flex;gap:7px;align-items:center}button{border:1px solid #769db5;border-radius:11px;color:#fff;background:#102b46e7;padding:10px 14px;cursor:pointer;font-weight:800;touch-action:manipulation}button:focus-visible{outline:2px solid #ffe99d}button.primary{background:linear-gradient(135deg,#ffc25a,#ef5943);color:#17101b;border:0}button:hover{filter:brightness(1.17)}#status{position:fixed;bottom:8px;left:50%;transform:translateX(-50%);font-size:12px;text-align:center;z-index:4;color:#acd5e2;background:#09182bd9;border:1px solid #46647b;border-radius:12px;padding:7px 14px;pointer-events:none;max-width:94vw}#status.bad{color:#ffb5a3;border-color:#f56556}#toast{position:fixed;left:50%;top:19%;transform:translateX(-50%);background:#142b43ed;border:1px solid #f6b85c;padding:12px 18px;border-radius:11px;font-size:14px;text-align:center;font-weight:750;opacity:0;transition:opacity .2s;pointer-events:none;z-index:12;max-width:90vw}#toast.visible{opacity:1}#menu{position:fixed;inset:0;display:flex;justify-content:center;align-items:center;background:radial-gradient(circle at center,#0f3140e0,#020910f0);z-index:9;overflow-y:auto;padding:12px}#menu.hidden{display:none}#panel{border-radius:22px;border:1px solid #6090b4;background:linear-gradient(150deg,#14344df4,#08192bf2);padding:clamp(19px,4vw,38px);max-width:min(590px,98vw);text-align:center;box-shadow:0 18px 90px #000b}#panel h1{color:#ffcf70;font-size:clamp(30px,6.5vw,67px);letter-spacing:.06em;margin:5px 0 2px}#panel .subtitle{color:#a9ddff;letter-spacing:.16em}#panel p{line-height:1.5;color:#e1eaf1;font-size:14px}#panel .meta{font-size:12px;color:#a7bbd0}.cards{display:flex;gap:9px;margin:16px 0;justify-content:center}.cards div{border:1px solid #456781;border-radius:10px;padding:9px;flex:1;background:#102b40;font-size:12px}.cards strong{display:block;color:#ffde9c;margin-bottom:4px}#panel .actions{display:flex;gap:9px;justify-content:center;flex-wrap:wrap;margin:16px 0}#panel .actions button{padding:13px 20px;font-size:15px}#touch{position:fixed;z-index:6;bottom:56px;left:0;right:0;display:none;justify-content:space-between;pointer-events:none;padding:0 14px}#touch .group{display:flex;gap:5px}#touch button{pointer-events:auto;min-width:50px;min-height:52px;font-size:21px;background:#103e61bb;padding:6px}@media(max-width:850px){#hud{gap:4px;flex-wrap:wrap;align-items:center;padding:6px 8px}#hud .subtext{display:none}#numbers{gap:10px}#tools button{padding:7px 9px;font-size:11px}#touch{display:flex}#status{font-size:10px;bottom:4px;max-width:96vw}}@media(max-height:550px){#panel p.meta{display:none}#panel{padding:13px}#panel h1{font-size:34px}.cards{margin:8px 0}#panel .actions{margin:9px 0}}
+</style></head><body><canvas id="game" aria-label="3D-Spielwelt"></canvas><header id="hud"><div><div class="brand">KONG <span>3D</span></div><div class="subtext">IMMERSIVES RETRO-BAUSTELLEN-ABENTEUER</div></div><div id="numbers"><div><span class="lab">PUNKTE</span><span id="score">000000</span></div><div><span class="lab">LEBEN</span><span id="lives">♥ ♥ ♥</span></div><div><span class="lab">ABSCHNITT</span><span id="stage">1 / 3</span></div><div><span class="lab">ZEITBONUS</span><span id="bonus">2100</span></div></div><div id="tools"><button id="cameraBtn">◉ Third Person</button><button id="pauseBtn" title="Pause">Ⅱ</button><button id="vrBtn" class="primary">VR starten</button></div></header><div id="status">Wird initialisiert …</div><div id="toast"></div><div id="touch"><div class="group"><button data-key="left" aria-label="Links">◀</button><button data-key="right" aria-label="Rechts">▶</button><button data-key="up" aria-label="Leiter hoch">▲</button><button data-key="down" aria-label="Leiter herunter">▼</button></div><div class="group"><button data-key="jump" aria-label="Springen">⤒</button><button data-key="camera" aria-label="Ansicht wechseln">◉</button></div></div><div id="menu"><div id="panel"><div class="subtext">DREIDIMENSIONALES RETRO-PLATTFORM-ABENTEUER</div><h1 id="menuTitle">KONG 3D</h1><div class="subtitle" id="menuSubtitle">CONSTRUCTION RESCUE</div><p>Klettere über Stahlträger, weiche Fässern aus, überwinde Aufzüge und entferne alle acht Nieten im Finale. Rette die Person auf dem höchsten Gerüst!</p><div class="cards"><div><strong>01 · STAHL</strong>Fässer und Leitern</div><div><strong>02 · AUFZÜGE</strong>Fahrende Plattformen</div><div><strong>03 · NIETEN</strong>8 Befestigungen</div></div><div class="actions"><button class="primary" id="startBtn">▶ Spiel starten</button><button id="menuCameraBtn">◉ Third Person</button></div><p class="meta">Quest 3: Zuerst „Spiel starten“, dann oben „VR starten“. Linker Stick: bewegen/klettern · rechter Trigger: springen · Grifftaste: Kamera wechseln.</p><p class="meta">PC: A/D oder ←/→, W/S oder ↑/↓, Leertaste, C für Kamera, P für Pause. Komplett selbstständige HTML-Datei ohne externe JavaScript-Bibliotheken.</p></div></div><script>
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
-const canvas=$('renderCanvas');
-const engine=new BABYLON.Engine(canvas,true,{stencil:true,preserveDrawingBuffer:false,antialias:true,powerPreference:'high-performance'});
-engine.setHardwareScalingLevel(Math.min(1.5,Math.max(1,window.devicePixelRatio>2?1.3:1)));
-const scene=new BABYLON.Scene(engine);
-scene.clearColor=new BABYLON.Color4(.015,.028,.075,1);
-scene.fogMode=BABYLON.Scene.FOGMODE_EXP2;scene.fogColor=new BABYLON.Color3(.025,.038,.075);scene.fogDensity=.006;
-const camera=new BABYLON.FreeCamera('desktopCamera',new BABYLON.Vector3(-7,4,-14),scene);
-camera.minZ=.035;camera.maxZ=250;camera.fov=.92;scene.activeCamera=camera;
-const hemi=new BABYLON.HemisphericLight('nightFill',new BABYLON.Vector3(.1,1,-.4),scene);hemi.intensity=.8;hemi.diffuse=new BABYLON.Color3(.65,.79,1);
-const keyLight=new BABYLON.DirectionalLight('mainLight',new BABYLON.Vector3(-.7,-1,.5),scene);keyLight.position=new BABYLON.Vector3(12,27,-15);keyLight.intensity=1.35;keyLight.diffuse=new BABYLON.Color3(1,.78,.62);
-const blueLight=new BABYLON.PointLight('blueNeon',new BABYLON.Vector3(-13,9,-3),scene);blueLight.diffuse=new BABYLON.Color3(.16,.65,1);blueLight.intensity=180;
-const amberLight=new BABYLON.PointLight('amberNeon',new BABYLON.Vector3(12,14,-2),scene);amberLight.diffuse=new BABYLON.Color3(1,.28,.14);amberLight.intensity=140;
-const mat=(n,h,emissive=.0)=>{const m=new BABYLON.StandardMaterial(n,scene);m.diffuseColor=BABYLON.Color3.FromHexString(h);m.specularColor=new BABYLON.Color3(.3,.36,.43);m.emissiveColor=m.diffuseColor.scale(emissive);return m;};
-const M={red:mat('oxide steel','#c94b58',.17),redLight:mat('beam edge','#ff8576',.3),redDark:mat('crossbrace','#672c43'),blue:mat('ladder alloy','#25b8ea',.42),blueDark:mat('ladder shade','#124673'),yellow:mat('industrial yellow','#f5b94e',.35),gold:mat('gold','#fce891',.6),ground:mat('deck','#203248'),gray:mat('iron','#34475b'),black:mat('dark metal','#101924'),white:mat('light','#f3e8d7',.2),skin:mat('skin','#eebc94'),hat:mat('helmet','#ed4139'),clothes:mat('jumpsuit','#246fca'),boots:mat('boots','#19283d'),ape:mat('ape fur','#694036'),apeChest:mat('chest','#b37b60'),pink:mat('pink suit','#f37cb8',.16),fire:mat('flame','#ff7b22',.9),core:mat('flame core','#fff78c',.95),barrel:mat('barrel wood','#b76634'),barrelEdge:mat('barrel hoops','#f1a34b'),green:mat('green','#65eb97',.6),riv:mat('bolt','#f9d162',.7)};
-const vec=(x,y,z)=>new BABYLON.Vector3(x,y,z);
-const box=(n,w,h,d,x,y,z,m,parent)=>{const a=BABYLON.MeshBuilder.CreateBox(n,{width:w,height:h,depth:d},scene);a.position.set(x,y,z);a.material=m;if(parent)a.parent=parent;return a;};
-const sphere=(n,r,x,y,z,m,parent,segments=12)=>{const a=BABYLON.MeshBuilder.CreateSphere(n,{diameter:2*r,segments},scene);a.position.set(x,y,z);a.material=m;if(parent)a.parent=parent;return a;};
-const cyl=(n,r,h,x,y,z,m,parent)=>{const a=BABYLON.MeshBuilder.CreateCylinder(n,{diameter:2*r,height:h,tessellation:14},scene);a.position.set(x,y,z);a.material=m;if(parent)a.parent=parent;return a;};
-const root=new BABYLON.TransformNode('stageObjects',scene);
-const world=new BABYLON.TransformNode('permanentWorld',scene);
-// Night skyline: entirely procedural geometry; no images or original game sprites.
-box('floor',75,.6,32,0,-2.65,1,M.ground,world);
-for(let i=0;i<38;i++){const x=-65+i*3.8, h=4+Math.abs(Math.sin(i*7.33))*24;const b=box('distantBuilding',2.8,h,4,x,h/2-3,23+3*Math.sin(i*2),i%3===0?M.gray:M.black,world);b.visibility=.7;
-for(let j=0;j<4;j++){const wy=-1+j*(h/5);box('window',.11,.15,.04,x-1+((j+i)%3)*.7,wy,20.97+3*Math.sin(i*2),j%3===0?M.gold:M.blue,world).visibility=.4;}}
-for(let i=0;i<65;i++){const x=((i*73.121)%125)-62,y=22+((i*17.3)%42),z=25+((i*11.5)%9);sphere('star',.035+(i%3)*.014,x,y,z,M.white,world,6)}
-// Deep construction frames give the scene actual 3D depth.
-for(let x of [-11.4,11.4])for(let z of [2.4,3.8]){box('rearColumn',.45,20,.5,x,7,z,M.gray,world);}
-for(let y=0;y<20;y+=3.2){box('rearBrace',25,.12,.13,0,y+1.4,3.6,M.gray,world).rotation.z=(y%2===0?.15:-.15);}
-function meshGroup(name,parent){const n=new BABYLON.TransformNode(name,scene);n.parent=parent;return n;}
-function makePlayer(){const g=meshGroup('hero',scene);
-const torso=box('blueJacket',.65,.82,.38,0,1.09,0,M.clothes,g),head=sphere('heroHead',.34,0,1.77,0,M.skin,g);
-box('helmet',.83,.18,.68,0,2.03,-.04,M.hat,g);
-box('helmetBrim',.96,.08,.75,0,1.96,-.10,M.hat,g);
-box('mustache',.46,.075,.08,0,1.64,-.31,M.black,g);
-sphere('eyeLeft',.05,-.12,1.80,-.305,M.black,g,8);sphere('eyeRight',.05,.12,1.80,-.305,M.black,g,8);
-const limbs=[];for(const s of [-1,1]){
-const leg=box('denimLeg',.24,.65,.28,s*.19,.42,0,M.clothes,g),shoe=box('shoe',.32,.18,.49,s*.19,.09,-.10,M.boots,g),arm=box('arm',.22,.62,.28,s*.49,1.10,0,M.hat,g),glove=sphere('glove',.17,s*.49,.77,0,M.white,g,10);limbs.push({leg,arm,glove,shoe,s});}
-const hammer=meshGroup('hammerHeld',g);cyl('handle',.05,.86,.67,1.24,-.17,M.barrel,hammer);box('hammerHead',.62,.28,.3,.67,1.68,-.17,M.gray,hammer);hammer.setEnabled(false);
-return {root:g,head,limbs,hammer};}
-const hero=makePlayer();
-function makeApe(){const g=meshGroup('king',root);const belly=sphere('kingBelly',1.06,0,1.15,0,M.apeChest,g,16);belly.scaling.set(1.2,.95,.75);const chest=sphere('fur',1.21,0,1.55,.3,M.ape,g,15);chest.scaling.set(1.28,1.1,.87);
-const head=sphere('apeFace',.85,0,2.75,-.12,M.ape,g,15);head.scaling.set(1.22,.86,.78);
-const muzzle=sphere('muzzle',.53,0,2.52,-.64,M.apeChest,g,12);muzzle.scaling.set(1.35,.55,.62);
-for(const x of [-.29,.29]){sphere('apeEye',.13,x,2.98,-.83,M.white,g,9);sphere('apePupil',.053,x,2.98,-.948,M.black,g,9);}
-const arms=[];for(const s of [-1,1]){const a=sphere('gorillaArm',.45,s*1.19,1.62,-.1,M.ape,g,12);a.scaling.set(.9,1.75,1);sphere('fist',.39,s*1.25,.69,-.20,M.ape,g,10);arms.push(a);}
-g.scaling.set(.95,.95,.95);return {root:g,arms};}
-const ape=makeApe();
-function makeRescue(){const g=meshGroup('rescuedWorker',root);sphere('personFace',.29,0,1.48,0,M.skin,g,12);box('pinkDress',.65,.83,.41,0,.82,0,M.pink,g);box('pinkHat',.69,.13,.59,0,1.74,0,M.pink,g);for(const s of [-1,1]){box('shoe',.22,.4,.25,s*.20,.21,0,M.white,g);box('arm',.17,.5,.19,s*.43,1,0,M.skin,g);}return g;}
-const rescued=makeRescue();
-const stageRoot=new BABYLON.TransformNode('levelRoot',scene); // all regenerated obstacle meshes live here
-let stageItems=[];
-function tracked(m){stageItems.push(m);return m;}
-function clearStage(){for(const m of stageItems){try{m.dispose();}catch{}}stageItems=[];}
-const levelCfg={girders:[[-9,9.1], [9,-9],[-8.9,9],[9,-9],[-9,9]], lifts:[[9.1,'ladder'],[-7.2,'lift'],[7.2,'lift'],[-7.2,'lift'],[9.1,'ladder']], rivets:[[9.1,'ladder'],[-9.1,'ladder'],[9.1,'ladder'],[-9.1,'ladder'],[9.1,'ladder']]};
-const state={playing:false,paused:false,gameOver:false,stage:0,loop:1,score:0,lives:3,time:180,mode:'third',invuln:0,spawnCooldown:0,barrels:[],fires:[],springs:[],hammers:[],rivets:[],lifts:[],ladderDefs:[],particles:[],messageTime:0,bonusLife:false};
-const P={x:-10.4,y:0,z:0,level:0,vy:0,grounded:true,climb:null,face:1,hammerTime:0,jumpCycle:0,lastGroundY:0,move:-0};
-let time=0,lastScoreText='',xrHelper=null,xrRig=null,vrTextMesh=null,vrTexture=null,toastTimeout=null,vrActive=false;
-let controls={left:false,right:false,up:false,down:false,jump:false},prevJump=false,prevVRGrip=false,prevVRFace=false,prevVRA=false;
-const keys=new Set(),touch=new Set();
-let high=0;try{high=Number(localStorage.getItem('kong3d-high')||0);}catch{}
+const canvas=$('game');
+const status=$('status');
+const setStatus=(msg,bad=false)=>{status.textContent=msg;status.classList.toggle('bad',!!bad);};
+const toast=(msg,ms=2200)=>{const e=$('toast');e.textContent=msg;e.classList.add('visible');clearTimeout(toast.id);toast.id=setTimeout(()=>e.classList.remove('visible'),ms);};
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-function score(n){state.score+=n;if(state.score>high){high=state.score;try{localStorage.setItem('kong3d-high',String(high));}catch{}}if(!state.bonusLife&&state.score>=7000){state.bonusLife=true;state.lives++;toast('BONUSLEBEN +1',1800);sound('bonus');}}
-function sound(what){try{const A=window.AudioContext||window.webkitAudioContext;window.__audio=window.__audio||new A();let a=window.__audio;if(a.state==='suspended')a.resume();const osc=a.createOscillator(),gain=a.createGain(),now=a.currentTime;const data=({jump:[490,220,.17,'square'],hit:[140,50,.37,'sawtooth'],coin:[660,1090,.19,'triangle'],hammer:[170,80,.13,'square'],bonus:[420,880,.37,'triangle'],clear:[410,800,.46,'sine'],climb:[270,340,.1,'triangle']})[what]||[330,250,.12,'sine'];osc.type=data[3];osc.frequency.setValueAtTime(data[0],now);osc.frequency.exponentialRampToValueAtTime(data[1],now+data[2]);gain.gain.setValueAtTime(.038,now);gain.gain.exponentialRampToValueAtTime(.001,now+data[2]);osc.connect(gain);gain.connect(a.destination);osc.start(now);osc.stop(now+data[2]+.02);}catch{}}
-function toast(s,ms=1450){const e=$('toast');e.textContent=s;e.style.opacity='1';clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>e.style.opacity='0',ms);}
-function levelHeight(l,x){if(state.stage===0){const slope=(l%2===0 ? -.032 : .032);return l*3.12+slope*x;}return l*3.12;}
-const inBounds=x=>x>=-11.55&&x<=11.55;
-function isGap(level,x){if(state.stage!==2)return false;return state.rivets.some(r=>r.removed&&r.level===level&&Math.abs(r.x-x)<.58);}
-function makeBeam(l){let y0=levelHeight(l,0);
-const beam=tracked(box('crossbeams '+l,23.4,.26,.95,0,y0-.14,.44,M.red,stageRoot));beam.rotation.z=state.stage===0?Math.atan2(levelHeight(l,11)-levelHeight(l,-11),22):0;
-// angled lattice structure, attached to the sloped beam
-for(let x=-10.65;x<=10.7;x+=1.5){const y=levelHeight(l,x);const b=tracked(box('girder strut',1.5,.10,.10,x+.73,y-.47,.46,M.redDark,stageRoot));b.rotation.z=((x/.15|0)%2===0?-.58:.58);
-tracked(box('girder cross',.13,.57,.13,x,y-.40,.45,M.redLight,stageRoot));}
-for(const z of [-.08,.95]){const trim=tracked(box('beam rim',23.35,.085,.085,0,y0-.02,z,M.redLight,stageRoot));trim.rotation.z=beam.rotation.z;}
-for(let x=-11.5;x<=11.5;x+=3){tracked(box('safetySupport',.13,2.0,.13,x,y0-1.4,1.3,M.gray,stageRoot));}}
-function ladderMesh(level,x,type='ladder'){
-const lo=levelHeight(level,x),hi=levelHeight(level+1,x);if(type==='lift'){
-const a=tracked(box('lift tower',2.25,hi-lo+.6,.18,x,(lo+hi)/2,-.35,M.gray,stageRoot));a.visibility=.46;
-for(const s of [-1,1])tracked(box('lift rail',.12,hi-lo+.65,.18,x+s*.88,(lo+hi)/2,-.42,M.blue,stageRoot));
-let p=tracked(box('lift platform',2.15,.19,1.65,x,lo-.14,-.06,M.yellow,stageRoot));let rail=tracked(box('lift guard',2.2,.1,.1,x,lo+.68,.65,M.yellow,stageRoot));state.lifts.push({x,level,lo,hi,mesh:p,rail,phase:level*.27,ride:false,pos:lo});
-}else{
-for(const s of [-1,1])tracked(box('ladder rail',.13,hi-lo+.3,.12,x+s*.42,(lo+hi)/2-.1,-.44,M.blue,stageRoot));
-for(let y=lo+.23;y<hi-.07;y+=.33){tracked(box('ladder rung',.95,.085,.12,x,y,-.46,M.white,stageRoot));}
+const mix=(a,b,t)=>a+(b-a)*t;
+const gl=canvas.getContext('webgl',{antialias:true,alpha:false,depth:true,preserveDrawingBuffer:false,xrCompatible:true})||canvas.getContext('experimental-webgl',{antialias:true,alpha:false,depth:true});
+if(!gl){setStatus('Auf diesem Gerät konnte WebGL nicht gestartet werden. Bitte den Meta Quest Browser aktualisieren.',true);$('menuSubtitle').textContent='WEBGL NICHT VERFÜGBAR';$('startBtn').disabled=true;return;}
+const shader=(type,src)=>{const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error('Shader: '+gl.getShaderInfoLog(s));return s;};
+let program,locations,buffer;
+try{
+const vs=shader(gl.VERTEX_SHADER,`attribute vec3 aPos; attribute vec3 aNormal; attribute vec3 aColor;
+uniform mat4 uVP; varying vec3 vColor; varying float vDepth;
+void main(){vec4 q=uVP*vec4(aPos,1.0); gl_Position=q;
+float light=0.48+max(0.0,dot(normalize(aNormal),normalize(vec3(-0.35,0.82,-0.5))))*0.52;
+vColor=aColor*light; vDepth=q.w;}`);
+const fs=shader(gl.FRAGMENT_SHADER,`precision mediump float;varying vec3 vColor;varying float vDepth;
+void main(){float fog=clamp((vDepth-39.0)/100.0,0.0,0.7);vec3 color=mix(vColor,vec3(0.02,0.05,0.11),fog);gl_FragColor=vec4(pow(color,vec3(0.87)),1.0);}`);
+program=gl.createProgram();gl.attachShader(program,vs);gl.attachShader(program,fs);gl.linkProgram(program);
+if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error('WebGL-Programm: '+gl.getProgramInfoLog(program));
+gl.useProgram(program);locations={pos:gl.getAttribLocation(program,'aPos'),normal:gl.getAttribLocation(program,'aNormal'),color:gl.getAttribLocation(program,'aColor'),vp:gl.getUniformLocation(program,'uVP')};
+buffer=gl.createBuffer();gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.CULL_FACE);
+}catch(err){setStatus('3D-Grafikfehler: '+err.message,true);return;}
+const C={steel:[.85,.21,.29],steelHi:[1,.52,.47],steelDark:[.36,.15,.22],ladder:[.12,.72,1],step:[.72,.9,1],yellow:[1,.72,.15],deck:[.1,.17,.26],iron:[.22,.32,.44],shadow:[.045,.08,.14],window:[.26,.69,.98],light:[1,.85,.52],skin:[.96,.67,.48],cap:[.94,.15,.18],suit:[.12,.40,.88],boots:[.07,.10,.20],white:[1,.96,.84],fur:[.38,.20,.14],chest:[.65,.39,.27],pink:[1,.40,.70],flame:[1,.29,.04],fireCore:[1,.94,.23],barrel:[.69,.30,.10],hoops:[1,.66,.23],green:[.39,1,.5]};
+function mul(A,B){const out=new Float32Array(16);for(let j=0;j<4;j++)for(let i=0;i<4;i++)out[i+j*4]=A[i]*B[j*4]+A[i+4]*B[j*4+1]+A[i+8]*B[j*4+2]+A[i+12]*B[j*4+3];return out;}
+const ident=()=>new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
+function translation(x,y,z){let m=ident();m[12]=x;m[13]=y;m[14]=z;return m;}
+function rotY(t){let m=ident(),c=Math.cos(t),s=Math.sin(t);m[0]=c;m[2]=-s;m[8]=s;m[10]=c;return m;}
+function scaling(s){let m=ident();m[0]=m[5]=m[10]=s;return m;}
+function perspective(fov,ratio,near,far){const f=1/Math.tan(fov/2),m=new Float32Array(16);m[0]=f/ratio;m[5]=f;m[10]=(far+near)/(near-far);m[11]=-1;m[14]=2*far*near/(near-far);return m;}
+const sub=(a,b)=>a.map((x,i)=>x-b[i]);
+function normalize(v){const l=Math.hypot(...v)||1;return v.map(x=>x/l);}
+function cross(a,b){return[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
+function lookAt(eye,at,up=[0,1,0]){const z=normalize(sub(eye,at)),x=normalize(cross(up,z)),y=cross(z,x),m=ident();
+m[0]=x[0];m[1]=y[0];m[2]=z[0];m[4]=x[1];m[5]=y[1];m[6]=z[1];m[8]=x[2];m[9]=y[2];m[10]=z[2];m[12]=-x.reduce((v,c,i)=>v+c*eye[i],0);m[13]=-y.reduce((v,c,i)=>v+c*eye[i],0);m[14]=-z.reduce((v,c,i)=>v+c*eye[i],0);return m;}
+const G={vertices:[],add(x,y,z,nx,ny,nz,c){this.vertices.push(x,y,z,nx,ny,nz,c[0],c[1],c[2]);},tri(a,b,c,col){const norm=normalize(cross(sub(b,a),sub(c,a)));for(const p of [a,b,c])this.add(p[0],p[1],p[2],...norm,col);},quad(a,b,c,d,col){this.tri(a,b,c,col);this.tri(a,c,d,col);},
+box(x,y,z,w,h,d,col,rz=0){let c=Math.cos(rz),s=Math.sin(rz),v=[];for(const p of [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]]){let dx=p[0]*w/2,dy=p[1]*h/2;v.push([x+dx*c-dy*s,y+dx*s+dy*c,z+p[2]*d/2]);}for(const [a,b,c1,d1] of [[0,3,2,1],[5,6,7,4],[4,7,3,0],[1,2,6,5],[3,7,6,2],[4,0,1,5]])this.quad(v[a],v[b],v[c1],v[d1],col);},
+sphere(x,y,z,r,col,detail=8,sy=1,sx=1){for(let t=0;t<detail/2;t++){let a=t*Math.PI/(detail/2),b=(t+1)*Math.PI/(detail/2);for(let j=0;j<detail;j++){let p=j*2*Math.PI/detail,q=(j+1)*2*Math.PI/detail;const pt=(f,theta)=>[x+Math.cos(theta)*Math.sin(f)*r*sx,y+Math.cos(f)*r*sy,z+Math.sin(theta)*Math.sin(f)*r];let a1=pt(a,p),a2=pt(a,q),b1=pt(b,p),b2=pt(b,q);this.tri(a1,b1,b2,col);this.tri(a1,b2,a2,col);}}},
+cylZ(x,y,z,r,depth,col,n=12){let z1=z-depth/2,z2=z+depth/2;for(let i=0;i<n;i++){let a=i*2*Math.PI/n,b=(i+1)*2*Math.PI/n;const v=t=>[x+r*Math.cos(t),y+r*Math.sin(t)];let [a1,a2]=v(a),[b1,b2]=v(b);this.quad([a1,a2,z1],[b1,b2,z1],[b1,b2,z2],[a1,a2,z2],col);this.tri([x,y,z1],[b1,b2,z1],[a1,a2,z1],col);this.tri([x,y,z2],[a1,a2,z2],[b1,b2,z2],col);}},
+reset(){this.vertices.length=0;}};
+const state={playing:false,paused:false,stage:0,loop:1,score:0,lives:3,time:210,mode:'third',inv:0,spawn:2,barrels:[],fires:[],springs:[],rivets:[],lifts:[],hammers:[],climb:null,lastJump:false};
+const P={x:-10.35,y:0,level:0,vY:0,grounded:true,face:1,hammer:0,lastGround:0};
+const ladders=[[9.1,-9.1,9.1,-9.1,9.1],[-8.7,8.7,-8.7,8.7,-8.7],[9.1,-9.1,9.1,-9.1,9.1]];
+const keys=new Set(),touch=new Set();let vrSession=null,vrRefSpace=null,vrActive=false,vrWasView=false,vrWasPause=false,last=0,previousView=false,previousPause=false,high=0;
+try{high=Number(localStorage.getItem('kong3d-record')||0);}catch{}
+const height=(l,x)=>l*3.12+(state.stage===0?(l%2===0?-.032:.032)*x:0);
+const gaps=(l,x)=>state.stage===2&&state.rivets.some(r=>r.removed&&r.l===l&&Math.abs(r.x-x)<.59);
+const randomDir=()=>Math.random()<.5?-1:1;
+function newGame(){state.playing=true;state.paused=false;state.stage=0;state.loop=1;state.score=0;state.lives=3;state.inv=1.5;buildStage();$('menu').classList.add('hidden');setStatus('Spiel läuft');toast('LOS GEHT’S! · LEITER: STICK NACH OBEN',2000);}
+function resetPlayer(){P.x=-10.35;P.level=0;P.y=height(0,P.x);P.vY=0;P.grounded=true;P.face=1;P.hammer=0;P.lastGround=P.y;state.climb=null;state.inv=1.5;}
+function buildStage(){state.barrels=[];state.fires=[];state.springs=[];state.rivets=[];state.hammers=[];state.lifts=[];state.spawn=1.8;state.time=210;
+if(state.stage===0){state.fires.push({x:-8.7,l:0,dir:1,t:0});state.hammers.push({x:-4,l:1,used:false},{x:3,l:3,used:false});}
+if(state.stage===1){state.fires.push({x:-5.4,l:1,dir:1,t:0},{x:6,l:3,dir:-1,t:0});state.springs.push({x:9.7,l:4,t:0});state.hammers.push({x:0,l:2,used:false});
+for(let l=0;l<5;l++)state.lifts.push({x:ladders[1][l],l,phase:l*.7,pos:height(l,ladders[1][l])});}
+if(state.stage===2){for(let l=1;l<=4;l++)for(let x of [-5.45,5.45])state.rivets.push({x,l,removed:false});state.fires.push({x:-8,l:1,dir:1,t:0},{x:8,l:2,dir:-1,t:0},{x:0,l:3,dir:1,t:0});state.hammers.push({x:-1,l:2,used:false});}
+resetPlayer();toast(['STAHLTRÄGER – FÄSSER UND LEITERN','AUFZÜGE – GEFÄHRLICHER WEG','NIETEN – ENTFERNE ALLE ACHT'][state.stage],2300);updateHUD();}
+function score(n){state.score+=n;if(state.score>high){high=state.score;try{localStorage.setItem('kong3d-record',String(high));}catch{}}}
+function won(){score(Math.round(Math.max(state.time,0))*10);state.stage=(state.stage+1)%3;if(state.stage===0)state.loop++;buildStage();}
+function hit(why){if(state.inv>0||!state.playing)return;state.lives--;if(state.lives<=0){state.playing=false;$('menu').classList.remove('hidden');$('menuTitle').textContent='GAME OVER';$('menuSubtitle').textContent='PUNKTE '+state.score+' · REKORD '+high;$('startBtn').textContent='↻ Noch einmal spielen';setStatus('Spiel beendet');toast('GAME OVER');return;}toast(why+' · NOCH '+state.lives+' LEBEN');resetPlayer();state.barrels.length=0;state.springs.length=0;state.spawn=2;}
+const control={move:0,vertical:0,jump:false,view:false,pause:false};
+function gamepadControl(){let ax=0,ay=0,j=false,v=false,pa=false;const feed=(gp,hand='')=>{if(!gp)return;const axes=gp.axes||[];let x=axes.length>2&&Math.abs(axes[2])>Math.abs(axes[0]||0)?axes[2]:axes[0]||0;let y=axes.length>3&&Math.abs(axes[3])>Math.abs(axes[1]||0)?axes[3]:axes[1]||0;
+if(hand!=='right'){if(Math.abs(x)>.18)ax=x;if(Math.abs(y)>.18)ay=-y;}
+const btn=i=>!!gp.buttons?.[i]?.pressed;
+if(hand!=='left')j ||=btn(0)||btn(4)||btn(7);
+if(hand!=='left')v ||=btn(1)||btn(5)||btn(3);
+if(hand==='left')v ||=btn(1)||btn(5);
+pa ||=btn(9);};
+if(vrSession){for(const src of vrSession.inputSources){feed(src.gamepad,src.handedness||'');}}
+else{for(const gp of navigator.getGamepads?.()||[])if(gp)feed(gp);}
+return {ax,ay,j,v,pa};}
+function readInput(){const gp=gamepadControl();const hor=(keys.has('ArrowRight')||keys.has('KeyD')||touch.has('right')?1:0)-(keys.has('ArrowLeft')||keys.has('KeyA')||touch.has('left')?1:0);const ver=(keys.has('ArrowUp')||keys.has('KeyW')||touch.has('up')?1:0)-(keys.has('ArrowDown')||keys.has('KeyS')||touch.has('down')?1:0);
+control.move=clamp(hor+gp.ax,-1,1);control.vertical=clamp(ver+gp.ay,-1,1);control.jump=keys.has('Space')||touch.has('jump')||gp.j;
+if(gp.v&&!previousView)cameraToggle();previousView=gp.v;
+if(gp.pa&&!previousPause)pauseToggle();previousPause=gp.pa;}
+function climb(dir){const next=P.level+dir;if(next<0||next>5)return false;const x=ladders[state.stage][dir>0?P.level:next];if(Math.abs(x-P.x)>.80)return false;
+if(state.stage===1){const lift=state.lifts.find(o=>o.l===(dir>0?P.level:next));if(lift&&Math.abs(lift.pos-height(dir>0?P.level:next,x))>.65){toast('AUFZUG ABWARTEN',600);return false;}}
+state.climb={x,from:P.y,to:height(next,x),next,t:0,seconds:state.stage===1?1.7:1.05};P.x=x;P.grounded=false;P.vY=0;return true;}
+function step(dt){readInput();if(!state.playing||state.paused)return;state.time-=dt;if(state.time<=0){hit('ZEIT ABGELAUFEN');state.time=150;}
+state.inv=Math.max(0,state.inv-dt);P.hammer=Math.max(0,P.hammer-dt);
+if(state.climb){let c=state.climb;c.t=Math.min(1,c.t+dt/c.seconds);P.x=c.x;P.y=mix(c.from,c.to,c.t);if(c.t>=1){P.level=c.next;P.y=height(P.level,P.x);P.grounded=true;P.lastGround=P.y;state.climb=null;}}
+else{
+if(P.grounded&&Math.abs(control.vertical)>.5)climb(control.vertical>0?1:-1);
+if(!state.climb){if(Math.abs(control.move)>.15)P.face=control.move>0?1:-1;
+P.x=clamp(P.x+control.move*4.6*dt,-11.13,11.13);
+if(P.grounded){if(!gaps(P.level,P.x)){P.y=height(P.level,P.x);P.lastGround=P.y;}else{P.grounded=false;P.vY=-.3;}}
+if(control.jump&&!state.lastJump&&P.grounded){P.vY=8.65;P.grounded=false;}
+if(!P.grounded){let before=P.y;P.vY-=18.5*dt;P.y+=P.vY*dt;
+if(P.vY<=0){for(let l=5;l>=0;l--){const floor=height(l,P.x);if(!gaps(l,P.x)&&before>=floor-.02&&P.y<=floor){let fall=P.lastGround-floor;P.level=l;P.y=floor;P.vY=0;P.grounded=true;if(fall>4.8){hit('ZU TIEF GEFALLEN');return;}P.lastGround=floor;break;}}}
+if(P.y<height(0,P.x)-4.5){hit('ABGESTÜRZT');return;}}
+}}
+state.lastJump=control.jump;
+if(state.stage!==2&&P.grounded&&P.level===5&&Math.abs(P.x-9)<1.05){won();return;}
+if(state.stage===2){for(const r of state.rivets)if(!r.removed&&r.l===P.level&&Math.abs(r.x-P.x)<.72){r.removed=true;score(100);toast('NIETE '+state.rivets.filter(q=>q.removed).length+' / 8',700);}if(state.rivets.every(r=>r.removed)){won();return;}}
+for(const h of state.hammers)if(!h.used&&h.l===P.level&&Math.abs(h.x-P.x)<.75){h.used=true;P.hammer=9.5;score(300);toast('HAMMER – 9 SEKUNDEN');}
+if(state.stage===0){state.spawn-=dt;if(state.spawn<=0&&state.barrels.length<16){state.barrels.push({x:-10.3,l:4,dir:1,near:false});state.spawn=clamp(3.2-(state.loop-1)*.16,1.25,3.2);}for(const b of state.barrels){b.x+=b.dir*2.25*(1+.1*(state.loop-1))*dt;if(Math.abs(b.x)>11.2){b.x=clamp(b.x,-11.12,11.12);b.l--;b.dir*=-1;b.near=false;}}state.barrels=state.barrels.filter(b=>b.l>=0);}
+if(state.stage===1){for(const l of state.lifts){l.phase+=dt*1.05;const lo=height(l.l,l.x),hi=height(l.l+1,l.x);l.pos=mix(lo,hi,(1-Math.cos(l.phase))/2);}
+for(const s of state.springs){s.x-=dt*3.1;s.t+=dt*7;}state.springs=state.springs.filter(s=>s.x>-11.4);if(Math.random()<dt*.19&&state.springs.length<4)state.springs.push({x:10.8,l:4,t:0});}
+for(const f of state.fires){f.x+=f.dir*1.4*dt;f.t+=dt*6;if(Math.abs(f.x)>10.5)f.dir*=-1;}
+for(const obstacle of [...state.barrels,...state.fires,...state.springs]){const oy=height(obstacle.l,obstacle.x)+.47;
+if(Math.abs(P.x-obstacle.x)<.69&&Math.abs(P.y+.82-oy)<.85){if(P.hammer>0){obstacle.dead=true;score(500);}else hit('HINDERNIS GETROFFEN');}
+else if(!P.grounded&&!obstacle.near&&Math.abs(P.x-obstacle.x)<.8&&P.y>oy+.35){obstacle.near=true;score(100);}}
+state.barrels=state.barrels.filter(o=>!o.dead);state.fires=state.fires.filter(o=>!o.dead);state.springs=state.springs.filter(o=>!o.dead);
+updateHUD();}
+function cameraToggle(){state.mode=state.mode==='third'?'first':'third';$('cameraBtn').textContent=state.mode==='third'?'◉ Third Person':'◎ First Person';$('menuCameraBtn').textContent=state.mode==='third'?'◉ Third Person':'◎ First Person';toast(state.mode==='first'?'FIRST PERSON – EGO':'THIRD PERSON – VERFOLGUNG',1400);}
+function pauseToggle(){if(!state.playing)return;state.paused=!state.paused;$('pauseBtn').textContent=state.paused?'▶':'Ⅱ';toast(state.paused?'PAUSE':'WEITER',850);}
+function updateHUD(){$('score').textContent=String(state.score).padStart(6,'0');$('lives').textContent='♥ '.repeat(Math.max(0,state.lives));$('stage').textContent=(state.stage+1)+' / 3';$('bonus').textContent=Math.max(0,Math.ceil(state.time)*10);}
+function box(...args){G.box(...args);}
+function sphere(...args){G.sphere(...args);}
+function sceneMeshes(t){G.reset();
+// Industrial night sky, sturdy columns and real 3-D steel platforms
+box(0,-2.7,1,55,.8,30,C.deck);
+for(let i=0;i<27;i++){let x=-75+i*5.7,h=4+Math.abs(Math.sin(i*7.33))*23,z=19+Math.sin(i*2.6)*5;
+box(x,h/2-3,z,4.2,h,4.0,i%3===0?C.iron:C.shadow);
+for(let j=0;j<5;j++)for(let k=0;k<2;k++){box(x-1+k*1.4,-.8+j*(h/5),z-2.04,.4,.4,.035,(i+j+k)%3===0?C.light:C.window);}}
+for(const x of [-11.5,11.5])for(const z of [1.75,3.1])box(x,8.5,z,.38,20,.44,C.iron);
+for(let y=-1;y<20;y+=3.1)box(0,y,2.95,23,.15,.17,C.iron);
+for(let l=0;l<6;l++){
+const cy=height(l,0),ang=state.stage===0?Math.atan2(height(l,10)-height(l,-10),20):0;
+box(0,cy-.12,.0,23.4,.25,1.55,C.steel,ang);box(0,cy+.015,-.6,23.5,.09,.13,C.steelHi,ang);
+for(let x=-10.2;x<11;x+=1.7){let y=height(l,x);box(x,y-.66,.9,.14,1.25,.16,C.steelDark);box(x+.8,y-.57,.9,1.7,.12,.14,C.steelHi,(Math.round(x)%2===0?.46:-.46));}
+if(l<5){let lx=ladders[state.stage][l],lo=height(l,lx),hi=height(l+1,lx);
+if(state.stage===1){box(lx,(lo+hi)/2,-.7,2.3,hi-lo+.5,.15,C.iron);for(let dx of [-.9,.9])box(lx+dx,(lo+hi)/2,-.76,.1,hi-lo+.5,.19,C.ladder);
+let lift=state.lifts.find(q=>q.l===l);box(lx,lift?.pos||lo,-.6,1.95,.19,1.3,C.yellow);}
+else{for(const dx of [-.45,.45])box(lx+dx,(lo+hi)/2,-.64,.13,hi-lo+.3,.15,C.ladder);
+for(let y=lo+.18;y<hi;y+=.36)box(lx,y,-.64,.95,.09,.16,C.step);}}}
+// Warehouse lights, ramps and supports
+for(const x of [-11.2,11.2]){box(x,9.5,2.1,.3,20,.3,C.iron);for(let y=1;y<17;y+=4)sphere(x,y,1.7,.2,C.yellow,8);}
+// Top enemy (procedural ape-like figure)
+const ax=-8.25,ay=height(5,ax);sphere(ax,ay+1.5,.3,1.08,C.fur,10,1.0,1.18);sphere(ax,ay+1.24,-.44,.68,C.chest,10,.8,1.0);
+sphere(ax,ay+2.9,-.02,.79,C.fur,10,.86,1.13);sphere(ax,ay+2.65,-.7,.47,C.chest,8,.6,1.1);
+for(const dx of [-.3,.3]){sphere(ax+dx,ay+3.02,-.71,.13,C.white,8);sphere(ax+dx,ay+3.01,-.84,.06,C.shadow,8);sphere(ax+dx*3.7,ay+1.4,-.14,.45,C.fur,8,1.55,.9);}
+// Rescued worker
+const wx=9.0,wy=height(5,wx);sphere(wx,wy+1.5,-.12,.3,C.skin,8);box(wx,wy+.8,0,.67,.81,.4,C.pink);box(wx,wy+1.78,-.13,.79,.19,.64,C.pink);
+for(const dx of [-.23,.23])box(wx+dx,wy+.2,0,.22,.43,.25,C.white);
+// Hammers and obstacles
+for(const h of state.hammers)if(!h.used){let y=height(h.l,h.x);box(h.x,y+.52,-.2,.12,.86,.12,C.barrel);box(h.x,y+.95,-.2,.65,.27,.28,C.iron);}
+for(const b of state.barrels){let y=height(b.l,b.x);G.cylZ(b.x,y+.42,-.22,.42,.66,C.barrel);G.cylZ(b.x,y+.42,-.56,.44,.08,C.hoops);G.cylZ(b.x,y+.42,.11,.44,.08,C.hoops);}
+for(const f of state.fires){let y=height(f.l,f.x);sphere(f.x,y+.4,0,.42,C.flame,8);sphere(f.x,y+.52,-.25,.24,C.fireCore,8);for(let j=-1;j<=1;j++)sphere(f.x+j*.22,y+.75+Math.sin(f.t+j)*.15,0,.19,C.flame,8,1.5);}
+for(const s of state.springs){let y=height(s.l,s.x)+.25+Math.abs(Math.sin(s.t))*.32;box(s.x,y,0,.61,.21,.46,C.iron);for(let i=0;i<3;i++)box(s.x,y+.18+i*.13,0,.54,.08,.32,C.yellow);}
+for(const r of state.rivets)if(!r.removed){let y=height(r.l,r.x);G.cylZ(r.x,y+.15,-.26,.35,.2,C.yellow);sphere(r.x,y+.32,-.28,.16,C.light,8);}
+// Main hero in 3D and camera switch
+if(state.mode==='third' || !state.playing){let x=P.x,y=P.y,walk=state.playing&&P.grounded&&Math.abs(control.move)>.2?Math.sin(t*10)*.18:0;
+box(x,y+1.09,0,.7,.85,.47,C.suit);sphere(x,y+1.78,-.04,.33,C.skin,10);box(x,y+2.04,-.03,.83,.2,.70,C.cap);
+box(x,y+1.70,-.36,.45,.09,.1,C.shadow);
+for(const dir of [-1,1]){box(x+dir*.21,y+.4+walk*dir,0,.25,.71,.3,C.suit);box(x+dir*.21,y+.12+walk*dir,-.1,.34,.22,.49,C.boots);box(x+dir*.49,y+1.14-walk*dir,0,.23,.65,.32,C.cap);sphere(x+dir*.49,y+.81-walk*dir,-.1,.19,C.white,8);}
+if(P.hammer>0){box(x+P.face*.65,y+1.5,-.12,.12,.8,.12,C.barrel);box(x+P.face*.65,y+1.93,-.12,.6,.27,.35,C.iron);}}
 }
-state.ladderDefs.push({x,level,type});
-}
-function makeBarrel(x,l){const rootBarrel=meshGroup('rollingBarrel',stageRoot);tracked(rootBarrel);const barrel=cyl('woodBarrel',.41,.66,0,0,0,M.barrel,rootBarrel);barrel.rotation.x=Math.PI/2;for(const z of [-.24,.24]){const ring=cyl('metalBand',.43,.08,0,0,z,M.barrelEdge,rootBarrel);ring.rotation.x=Math.PI/2;}
-const b={root:rootBarrel,x,l,dir:l%2===0?1:-1,r:.43,spin:0,dead:false};rootBarrel.position.set(x,levelHeight(l,x)+.43,-.2);state.barrels.push(b);return b;}
-function makeFire(x,l){const g=meshGroup('fireHazard',stageRoot);tracked(g);const c=sphere('fireCore',.41,0,.15,0,M.fire,g,11);sphere('fireInner',.24,0,.25,-.2,M.core,g,9);for(let i=0;i<3;i++){const tip=sphere('flameTongue',.17,(-1+i)*.2,.57,0,M.fire,g,8);tip.scaling.y=1.8;}
-const f={root:g,x,l,dir:Math.random()>.5?1:-1,phase:Math.random()*6.28,dead:false};g.position.set(x,levelHeight(l,x)+.25,0);state.fires.push(f);return f;}
-function makeSpring(x,l){const g=meshGroup('springHazard',stageRoot);tracked(g);const base=box('springBase',.62,.13,.53,0,.1,0,M.gray,g);for(let i=0;i<4;i++)box('springCoil',.48,.085,.38,0,.22+i*.12,0,M.yellow,g);
-g.position.set(x,levelHeight(l,x),0);state.springs.push({root:g,x,l,dir:-1,dead:false,phase:0});}
-function makeHammer(x,l){const g=meshGroup('hammerItem',stageRoot);tracked(g);cyl('hammerHandle',.06,.8,0,.38,0,M.barrel,g);box('hammerBlock',.66,.23,.25,0,.8,0,M.gray,g);
-g.position.set(x,levelHeight(l,x),-.15);state.hammers.push({root:g,x,l,used:false});}
-function makeRivet(x,l){const g=meshGroup('rivet',stageRoot);tracked(g);const ring=cyl('rivetRing',.47,.10,0,.05,0,M.yellow,g);sphere('rivetCap',.31,0,.17,0,M.riv,g,10);g.position.set(x,levelHeight(l,x),-.05);const r={root:g,x,level:l,removed:false};state.rivets.push(r);}
-function resetPlayer(){P.x=-10.4;P.level=0;P.y=levelHeight(0,P.x);P.vy=0;P.grounded=true;P.climb=null;P.face=1;P.hammerTime=0;P.lastGroundY=P.y;P.jumpCycle=0;hero.root.position.set(P.x,P.y,0);hero.root.setEnabled(true);hero.hammer.setEnabled(false);state.invuln=1.65;}
-function buildStage(){clearStage();state.barrels=[];state.fires=[];state.springs=[];state.hammers=[];state.rivets=[];state.lifts=[];state.ladderDefs=[];state.spawnCooldown=3.0;state.time=210;
-for(let l=0;l<6;l++)makeBeam(l);
-const def=[levelCfg.girders,levelCfg.lifts,levelCfg.rivets][state.stage];
-for(let i=0;i<5;i++){if(state.stage===0)ladderMesh(i,def[i][1]);else ladderMesh(i,def[i][0],def[i][1]);}
-ape.root.position.set(-8.15,levelHeight(5,-8.15)+.20,.35);rescued.position.set(8.95,levelHeight(5,8.95)+.18,.2);
-if(state.stage===0){makeHammer(-4,1);makeHammer(3,3);makeFire(-9,0);}
-if(state.stage===1){makeFire(-5.4,1);makeFire(6.0,3);makeSpring(9.5,4);makeHammer(0,2);}
-if(state.stage===2){for(let l=1;l<=4;l++){makeRivet(-5.45,l);makeRivet(5.45,l);}makeFire(-8,1);makeFire(8,2);makeFire(0,3);makeHammer(-1,2);}
-resetPlayer();
-$('stage').textContent=(state.stage+1)+' / 3';
-const names=['STAHLTRÄGER – Fässer und Leitern','AUFZÜGE – Aufzüge und Federn','NIETEN – Entferne alle acht Nieten'];toast(names[state.stage],3200);
-}
-function newGame(){state.playing=true;state.gameOver=false;state.paused=false;state.stage=0;state.loop=1;state.score=0;state.lives=3;state.bonusLife=false;buildStage();$('menu').classList.add('hidden');$('pauseBtn').textContent='Ⅱ';sound('bonus');}
-function stageWin(){score(Math.max(0,Math.round(state.time/10)*100));sound('clear');state.stage++;if(state.stage>2){state.stage=0;state.loop++;toast('RUNDE '+state.loop+' – HÖHERE SCHWIERIGKEIT!',3000);}buildStage();}
-function loseLife(reason){if(state.invuln>0||!state.playing)return;state.lives--;sound('hit');if(state.lives<=0){state.gameOver=true;state.playing=false;$('menu').classList.remove('hidden');$('menu').querySelector('h1').textContent='GAME OVER';$('menu').querySelector('.sub').textContent='PUNKTE '+String(state.score).padStart(6,'0')+'  ·  REKORD '+String(high).padStart(6,'0');$('startBtn').textContent='↻ Erneut spielen';toast('GAME OVER',1600);return;}toast(reason+' · '+state.lives+' LEBEN ÜBRIG',1900);resetPlayer();for(const b of state.barrels)b.dead=true;for(const s of state.springs)s.dead=true;state.spawnCooldown=3;}
-function setCameraMode(m){state.mode=m|| (state.mode==='third'?'first':'third');$('camBtn').textContent='◉ '+(state.mode==='third'?'Third Person':'First Person');$('menuCamBtn').textContent='◉ '+(state.mode==='third'?'Third Person':'First Person');toast(state.mode==='first'?'FIRST PERSON – EGO-SICHT':'THIRD PERSON – VERFOLGUNGSKAMERA',1100);}
-function verticalInput(){return (controls.up?1:0)-(controls.down?1:0);}
-function canClimb(up){if(!P.grounded||P.climb)return false;
-const connector=state.ladderDefs.find(l=>{if(up&&l.level!==P.level)return false;if(!up&&l.level+1!==P.level)return false;return Math.abs(P.x-l.x)<.77;});
-if(!connector)return false;
-if(connector.type==='lift'){
-const lift=state.lifts.find(l=>l.level===connector.level);
-if(lift&&Math.abs(lift.pos-(up?lift.lo:lift.hi))>.55){if(Math.random()<.01)toast('Aufzug abwarten …',650);return true;}
-if(lift)lift.ride=true;
-}
-P.x=connector.x;const newLevel=P.level+(up?1:-1);P.climb={start:P.y,end:levelHeight(newLevel,connector.x),targetLevel:newLevel,t:0,duration:connector.type==='lift'?2.0:1.13,lift:connector.type==='lift'?state.lifts.find(l=>l.level===connector.level):null};P.grounded=false;P.vy=0;sound('climb');return true;}
-const xbox={move:0,up:0,jump:false,view:false,pause:false};
-function gamepadInput(){xbox.move=0;xbox.up=0;xbox.jump=false;xbox.view=false;xbox.pause=false;
-for(const gp of navigator.getGamepads?.()||[]){if(!gp)continue;const a=gp.axes||[];const horizontal=a.length>=4?a[0]:a[0];const vertical=a.length>=4?a[1]:a[1];if(Math.abs(horizontal||0)>.22)xbox.move=horizontal;if(Math.abs(vertical||0)>.35)xbox.up=-vertical;
-const btn=(i)=>!!gp.buttons?.[i]?.pressed;
-if(btn(0)||btn(1)||btn(7))xbox.jump=true;
-if(btn(2)||btn(3))xbox.view=true;if(btn(9))xbox.pause=true;}
-}
-const vrPad={move:0,up:0,jump:false,view:false,pause:false};
-function pollVR(){vrPad.move=0;vrPad.up=0;vrPad.jump=false;vrPad.view=false;vrPad.pause=false;
-if(!vrActive||!xrHelper?.baseExperience?.sessionManager?.session)return;
-for(const src of xrHelper.baseExperience.sessionManager.session.inputSources){let gp=src.gamepad;if(!gp)continue;
-const a=gp.axes||[];const ax=a.length>=4?a[2]:a[0],ay=a.length>=4?a[3]:a[1];if(src.handedness==='left'){if(Math.abs(ax||0)>.22)vrPad.move=ax;if(Math.abs(ay||0)>.3)vrPad.up=-ay;}
-const pressed=i=>!!gp.buttons?.[i]?.pressed;
-if(src.handedness==='right'){vrPad.jump ||=pressed(0)||pressed(4);vrPad.view ||=pressed(1)||pressed(5);}
-if(src.handedness==='left'){vrPad.view ||=pressed(1);vrPad.pause ||=pressed(4);}
-}
-if(vrPad.view&&!prevVRGrip)setCameraMode();prevVRGrip=vrPad.view;
-}
-function readControls(){gamepadInput();pollVR();const axis=(keys.has('ArrowRight')||keys.has('KeyD')||touch.has('right')?1:0)-(keys.has('ArrowLeft')||keys.has('KeyA')||touch.has('left')?1:0);
-const up=(keys.has('ArrowUp')||keys.has('KeyW')||touch.has('up')?1:0)-(keys.has('ArrowDown')||keys.has('KeyS')||touch.has('down')?1:0);
-const move=clamp(axis+xbox.move+vrPad.move,-1,1),vert=clamp(up+xbox.up+vrPad.up,-1,1);
-controls.left=move<-.22;controls.right=move>.22;controls.up=vert>.24;controls.down=vert<-.24;
-controls.jump=keys.has('Space')||touch.has('jump')||xbox.jump||vrPad.jump;
-if(xbox.view&&!prevVRFace)setCameraMode();prevVRFace=xbox.view;
-if(xbox.pause&&!prevVRA){togglePause();}prevVRA=xbox.pause;
-return move;}
-function heroStep(dt){const move=readControls();if(!state.playing||state.paused)return;
-state.invuln=Math.max(0,state.invuln-dt);P.hammerTime=Math.max(0,P.hammerTime-dt);
-if(P.climb){const c=P.climb;c.t=Math.min(1,c.t+dt/c.duration);P.y=c.start+(c.end-c.start)*c.t;P.x=c.lift?.x??P.x;if(c.lift){c.lift.pos=P.y;c.lift.ride=true;}if(c.t>=1){P.level=c.targetLevel;P.y=levelHeight(P.level,P.x);P.climb=null;P.grounded=true;P.lastGroundY=P.y;if(c.lift)c.lift.ride=false;}
-}else if(P.grounded&&Math.abs(verticalInput())>.3){if(!canClimb(controls.up)){} }
-if(!P.climb){if(move)P.face=move>0?1:-1;
-const oldX=P.x;P.x=clamp(P.x+move*(P.hammerTime>0?3.9:4.75)*dt,-11.16,11.16);
-if(P.grounded){if(!isGap(P.level,P.x)){P.y=levelHeight(P.level,P.x);P.lastGroundY=P.y;}else{P.grounded=false;P.vy=-.8;}}
-if(controls.jump&&!prevJump&&P.grounded){P.vy=8.4;P.grounded=false;P.jumpCycle=.33;sound('jump');}
-if(!P.grounded){const before=P.y;P.vy-=18.4*dt;P.y+=P.vy*dt;
-if(P.vy<=0){for(let l=5;l>=0;l--){const floor=levelHeight(l,P.x);if(inBounds(P.x)&&!isGap(l,P.x)&&before>=floor-.035&&P.y<=floor){const fall=before===P.lastGroundY?0:(P.lastGroundY-floor);P.level=l;P.y=floor;P.vy=0;P.grounded=true;if(fall>4.5){loseLife('Zu tief gefallen');return;}P.lastGroundY=floor;break;}}}
-if(P.y<levelHeight(0,P.x)-4.2){loseLife('Abgestürzt');return;}}
-}
-prevJump=controls.jump;
-if(P.grounded&&P.level===5&&Math.abs(P.x-8.95)<1.18&&state.stage!==2){stageWin();return;}
-if(state.stage===2){for(const r of state.rivets)if(!r.removed&&P.level===r.level&&Math.abs(r.x-P.x)<.67&&Math.abs(P.y-levelHeight(r.level,P.x))<.8){r.removed=true;r.root.setEnabled(false);score(100);sound('coin');toast('NIETE ENTFERNT  '+state.rivets.filter(n=>n.removed).length+'/8',850);}
-if(state.rivets.every(r=>r.removed)){stageWin();return;}}
-for(const h of state.hammers){if(h.used)continue;if(P.level===h.l&&Math.abs(P.x-h.x)<.85&&Math.abs(P.y-levelHeight(h.l,P.x))<.9){h.used=true;h.root.setEnabled(false);P.hammerTime=9.5;score(300);sound('hammer');toast('HAMMER! 9 SEKUNDEN',1250);}}
-const touching=(hazX,hazY,dx=.64,dy=.86)=>Math.abs(hazX-P.x)<dx&&Math.abs(hazY-(P.y+.85))<dy;
-for(const list of [state.barrels,state.fires,state.springs])for(const b of list){if(b.dead)continue;const yy=b.root.position.y+.18;if(touching(b.x,yy,b.r?.75:.64,.74)){
-if(P.hammerTime>0){b.dead=true;b.root.setEnabled(false);score(500);sound('hammer');}
-else if(state.invuln<=0){loseLife('Hindernis getroffen');return;}}
-else if(b.root.position.y<P.y+.3&&P.y<yy+2&&Math.abs(P.x-b.x)<.8&&P.vy!==0&&!b.nearScored){score(100);b.nearScored=true;}}
-}
-function tickHazards(dt){time+=dt;
-const intensity=1+.14*(state.loop-1);
-if(state.stage===0){state.spawnCooldown-=dt;if(state.spawnCooldown<=0&&state.barrels.length<16){makeBarrel(-10,4);state.spawnCooldown=Math.max(1.5,3.1-.18*state.loop);}
-for(const b of state.barrels){if(b.dead)continue;b.x+=b.dir*(2.45*intensity)*dt;
-if(b.x>11.3||b.x< -11.3){b.l--;b.dir*=-1;b.nearScored=false;b.x=clamp(b.x,-11.1,11.1);if(b.l<0){b.dead=true;b.root.setEnabled(false);continue;}}
-b.root.position.set(b.x,levelHeight(b.l,b.x)+.42,-.18);b.root.rotation.z+=b.dir*dt*6.4;}}
-if(state.stage===1){if(Math.random()<dt*.23*intensity&&state.springs.filter(s=>!s.dead).length<4)makeSpring(10.8,4);
-for(const s of state.springs){if(s.dead)continue;s.x-=3.25*intensity*dt;s.phase+=dt*11;s.root.position.set(s.x,levelHeight(s.l,s.x)+.15+Math.max(0,Math.sin(s.phase))*.48,0);if(s.x< -11.5){s.root.setEnabled(false);s.dead=true;}}}
-for(const f of state.fires){if(f.dead)continue;f.x+=f.dir*(1.35+state.loop*.15)*dt;const left=state.stage===0?-11: -10.3,right=10.3;if(f.x<left||f.x>right){f.dir*=-1;f.x=clamp(f.x,left,right);}f.phase+=dt*7;f.root.position.set(f.x,levelHeight(f.l,f.x)+.25+Math.sin(f.phase)*.13,0);}
-for(const l of state.lifts){if(!l.ride){l.phase+=dt*.75;const alpha=(1-Math.cos(l.phase*2))/2;l.pos=l.lo+(l.hi-l.lo)*alpha;}l.mesh.position.y=l.pos-.13;l.rail.position.y=l.pos+.64;}
-for(const b of [...state.barrels,...state.springs])if(b.dead&&b.root&&!b.removed){b.removed=true;b.root.dispose();}
-state.barrels=state.barrels.filter(b=>!b.dead);state.springs=state.springs.filter(b=>!b.dead);
-}
-function heroAnimation(dt){hero.root.position.set(P.x,P.y,0);hero.root.rotation.y=P.face>0?-Math.PI/2:Math.PI/2;
-hero.root.setEnabled(state.mode!=='first'&&(!state.playing||!(state.invuln>0&&Math.floor(time*12)%2===0)));
-const walk=P.grounded&&(!P.climb)&&(controls.left||controls.right);P.jumpCycle=Math.max(0,P.jumpCycle-dt);
-for(const limb of hero.limbs){const ang=(walk?Math.sin(time*11)*.46:0)*(limb.s);limb.leg.rotation.z=ang;limb.arm.rotation.z=-ang*.7;}
-hero.hammer.setEnabled(P.hammerTime>0);if(P.hammerTime>0)hero.hammer.rotation.z=Math.sin(time*13)*.35;
-ape.arms.forEach((a,i)=>a.rotation.z=Math.sin(time*1.3+i*2)*.12);
-rescued.position.y=levelHeight(5,8.95)+.18+Math.sin(time*3)*.07;
-}
-let fTick=0;
-function cameraStep(dt){const target=vec(P.x,P.y,0);
-if(!vrActive){if(state.mode==='third'){
-const dest=vec(clamp(P.x-P.face*3.6,-12,12),P.y+4.1,-12.8),look=vec(P.x+P.face*1.35,P.y+1.45,0);camera.position=BABYLON.Vector3.Lerp(camera.position,dest,Math.min(1,dt*4.2));camera.setTarget(look);camera.fov=.92;
-}else{const dest=vec(P.x,P.y+1.68,-.08);camera.position=BABYLON.Vector3.Lerp(camera.position,dest,Math.min(1,dt*9));camera.setTarget(vec(P.x+P.face*6,P.y+1.6,.35));camera.fov=1.15;}
-}else if(xrRig){const dest=state.mode==='third'?vec(P.x,P.y+1.25,-8.1):vec(P.x,P.y,-.05);
-xrRig.position=BABYLON.Vector3.Lerp(xrRig.position,dest,Math.min(1,dt*5.5));
-// Local Quest forward is -Z. Third person looks into the construction plane (+Z).
-const yaw=state.mode==='third'?Math.PI:(P.face>0?-Math.PI/2:Math.PI/2);
-let dif=((yaw-xrRig.rotation.y+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;
-xrRig.rotation.y+=dif*Math.min(1,dt*4);
-}
-}
-function tick(dt){dt=Math.min(dt,.037);if(!dt)return;
-if(state.playing&&!state.paused){readControls();state.time-=dt;if(state.time<=0){state.time=0;loseLife('Zeit abgelaufen');state.time=120;}else{tickHazards(dt);heroStep(dt);heroAnimation(dt);}}
-else{readControls();heroAnimation(0);}
-cameraStep(dt);
-if(state.playing)updateHUD();}
-function updateHUD(){const sc=String(state.score).padStart(6,'0');if($('score').textContent!==sc)$('score').textContent=sc;
-$('lives').textContent='♥ '.repeat(Math.max(0,state.lives));$('stage').textContent=(state.stage+1)+' / 3'+(state.loop>1?' · R'+state.loop:'');
-$('bonus').textContent=String(Math.ceil(state.time/10)*100);
-if(vrTexture&&vrActive){let text=sc+'/'+state.lives+'/'+(state.stage+1)+'/'+Math.ceil(state.time);if(text!==lastScoreText){lastScoreText=text;const ctx=vrTexture.getContext();ctx.clearRect(0,0,1024,180);ctx.fillStyle='#0c2541';ctx.fillRect(0,0,1024,180);ctx.strokeStyle='#77c4ec';ctx.lineWidth=8;ctx.strokeRect(6,6,1012,168);ctx.fillStyle='#ffe0a2';ctx.font='bold 54px Arial';ctx.textAlign='center';ctx.fillText('KONG 3D    '+sc+' P     ♥ '+state.lives+'     LEVEL '+(state.stage+1),512,74);ctx.font='34px Arial';ctx.fillStyle='#d6f4ff';ctx.fillText((state.mode==='first'?'EGO':'THIRD')+' · Bonus '+Math.ceil(state.time/10)*100+' · Trigger: Springen | Griff: Kamera',512,136);vrTexture.update();}}}
-function togglePause(){if(!state.playing)return;state.paused=!state.paused;$('pauseBtn').textContent=state.paused?'▶':'Ⅱ';toast(state.paused?'PAUSE':'WEITER',800);}
-$('startBtn').onclick=()=>{if(state.gameOver){$('menu').querySelector('h1').textContent='KONG 3D';$('menu').querySelector('.sub').textContent='CONSTRUCTION RESCUE';}newGame();};
-$('camBtn').onclick=()=>setCameraMode();$('menuCamBtn').onclick=()=>setCameraMode();$('pauseBtn').onclick=togglePause;
-window.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code))e.preventDefault();if(!keys.has(e.code)){if(e.code==='KeyC')setCameraMode();if(e.code==='KeyP'||e.code==='Escape')togglePause();if(e.code==='KeyR')newGame();if(e.code==='KeyV')toggleVR();if(e.code==='Enter'&&!state.playing)newGame();}keys.add(e.code);});
+function upload(){gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(G.vertices),gl.DYNAMIC_DRAW);const step=36;
+for(const [idx,offset] of [[locations.pos,0],[locations.normal,12],[locations.color,24]]){gl.enableVertexAttribArray(idx);gl.vertexAttribPointer(idx,3,gl.FLOAT,false,step,offset);}}
+function draw(vp,viewport,framebuffer=null){gl.bindFramebuffer(gl.FRAMEBUFFER,framebuffer);gl.viewport(...viewport);gl.enable(gl.SCISSOR_TEST);gl.scissor(...viewport);gl.clearColor(.012,.025,.07,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);gl.uniformMatrix4fv(locations.vp,false,vp);gl.drawArrays(gl.TRIANGLES,0,G.vertices.length/9);gl.disable(gl.SCISSOR_TEST);}
+function resize(){const dpr=Math.min(window.devicePixelRatio||1,1.4);let w=Math.max(2,Math.floor(canvas.clientWidth*dpr)),h=Math.max(2,Math.floor(canvas.clientHeight*dpr));if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}}
+function desktopRender(t){resize();let eye,at;
+if(state.mode==='third'){eye=[clamp(P.x-P.face*3.0,-12.8,12.8),P.y+4.2,-14.3];at=[P.x+P.face*.85,P.y+1.4,0];}
+else{eye=[P.x,P.y+1.65,-.35];at=[P.x+P.face*7,P.y+1.66,.35];}
+let view=lookAt(eye,at),proj=perspective(state.mode==='third'?.89:1.1,canvas.width/canvas.height,.04,175);
+sceneMeshes(t);upload();draw(mul(proj,view),[0,0,canvas.width,canvas.height]);}
+let sceneTime=0,lastFrame=0;
+function animate(now){if(vrActive)return;const dt=Math.min(.037,Math.max(0,(now-lastFrame)/1000||.016));lastFrame=now;sceneTime+=dt;step(dt);desktopRender(sceneTime);requestAnimationFrame(animate);}
+async function startVR(){if(vrSession){await vrSession.end();return;}if(!navigator.xr){toast('VR benötigt Meta Quest Browser und HTTPS',3500);return;}
+// Request XR immediately from the button gesture (avoids user-activation expiry).
+let session;
+try{session=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor','dom-overlay'],domOverlay:{root:document.body}});}catch(err){try{session=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor']});}catch(err2){toast('VR-Start fehlgeschlagen: '+err2.message,5000);return;}}
+try{if(gl.makeXRCompatible)await gl.makeXRCompatible();
+session.updateRenderState({baseLayer:new XRWebGLLayer(session,gl,{alpha:false,antialias:true,depth:true})});
+vrRefSpace=await session.requestReferenceSpace('local-floor').catch(()=>session.requestReferenceSpace('local'));
+vrSession=session;vrActive=true;$('vrBtn').textContent='VR beenden';if(!state.playing)newGame();toast('VR AKTIV · LINKER STICK: BEWEGEN · TRIGGER: SPRINGEN',3200);
+session.addEventListener('end',()=>{vrActive=false;vrSession=null;$('vrBtn').textContent='VR starten';lastFrame=performance.now();requestAnimationFrame(animate);});
+let prev=0;const vrFrame=(now,frame)=>{if(!vrActive)return;const sess=frame.session;sess.requestAnimationFrame(vrFrame);const dt=Math.min(.037,(now-prev)/1000||.016);prev=now;sceneTime+=dt;step(dt);sceneMeshes(sceneTime);upload();const pose=frame.getViewerPose(vrRefSpace);if(!pose)return;
+// Local coordinate system: first-person rides inside the world; third-person is a miniature diorama.
+let transform;if(state.mode==='first'){transform=mul(rotY(P.face>0?Math.PI/2:-Math.PI/2),translation(-P.x,-P.y,0));}
+else{transform=mul(translation(0,1.0,-11.0),mul(scaling(.53),translation(0,-8.0,0)));}
+let base=sess.renderState.baseLayer;gl.bindFramebuffer(gl.FRAMEBUFFER,base.framebuffer);
+for(const eye of pose.views){const vp=base.getViewport(eye);let v=eye.transform.inverse.matrix,proj=eye.projectionMatrix;draw(mul(mul(proj,v),transform),[vp.x,vp.y,vp.width,vp.height],base.framebuffer);}
+};session.requestAnimationFrame(vrFrame);
+}catch(e){toast('VR-Grafikfehler: '+e.message,4500);console.error(e);try{await session.end();}catch{}}}
+$('startBtn').addEventListener('click',()=>{if(!state.playing){$('menuTitle').textContent='KONG 3D';$('menuSubtitle').textContent='CONSTRUCTION RESCUE';$('startBtn').textContent='▶ Spiel starten';newGame();}}, {passive:true});
+// Quest controller browser pointer-up events sometimes omit synthetic click events.
+$('startBtn').addEventListener('pointerup',e=>{if(!state.playing){$('menuTitle').textContent='KONG 3D';$('menuSubtitle').textContent='CONSTRUCTION RESCUE';$('startBtn').textContent='▶ Spiel starten';newGame();}});
+$('cameraBtn').addEventListener('click',cameraToggle);$('menuCameraBtn').addEventListener('click',cameraToggle);$('pauseBtn').addEventListener('click',pauseToggle);$('vrBtn').addEventListener('click',startVR);
+window.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code))e.preventDefault();if(!keys.has(e.code)){if(e.code==='KeyC')cameraToggle();if(e.code==='KeyP'||e.code==='Escape')pauseToggle();if(e.code==='KeyR')newGame();if(e.code==='Enter'&&!state.playing)newGame();}keys.add(e.code);});
 window.addEventListener('keyup',e=>keys.delete(e.code));window.addEventListener('blur',()=>keys.clear());
-for(const b of document.querySelectorAll('[data-t]')){const k=b.dataset.t;b.addEventListener('pointerdown',e=>{e.preventDefault();b.setPointerCapture(e.pointerId);if(k==='camera')setCameraMode();else touch.add(k);});for(const ev of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(ev,()=>touch.delete(k));}
-async function initXR(){if(!navigator.xr||!window.isSecureContext){$('vrBtn').title='VR benötigt Quest-Browser und HTTPS (z. B. GitHub Pages)';return;}
-try{if(!await navigator.xr.isSessionSupported('immersive-vr')){$('vrBtn').title='Kein immersives VR auf diesem Gerät; auf Quest 3 öffnen';return;}
-xrHelper=await scene.createDefaultXRExperienceAsync({disableDefaultUI:true,disableTeleportation:true,disablePointerSelection:true,disableNearInteraction:true});
-if(xrHelper.teleportation)xrHelper.teleportation.detach();if(xrHelper.pointerSelection)xrHelper.pointerSelection.detach();
-xrRig=new BABYLON.TransformNode('xrRig',scene);xrRig.position.set(P.x,P.y,-8);xrRig.rotation.y=Math.PI;
-xrHelper.baseExperience.camera.parent=xrRig;
-xrHelper.baseExperience.camera.minZ=.035;
-xrHelper.baseExperience.onStateChangedObservable.add(s=>{vrActive=s===BABYLON.WebXRState.IN_XR;const exiting=s===BABYLON.WebXRState.NOT_IN_XR;if(vrActive){$('vrBtn').textContent='VR beenden';if(vrTextMesh)vrTextMesh.setEnabled(true);}else if(exiting){$('vrBtn').textContent='VR starten';if(vrTextMesh)vrTextMesh.setEnabled(false);scene.activeCamera=camera;}});
-vrTexture=new BABYLON.DynamicTexture('vrScoreTexture',{width:1024,height:180},scene,false);vrTexture.hasAlpha=false;
-const hm=new BABYLON.StandardMaterial('headsetHUD',scene);hm.diffuseTexture=vrTexture;hm.emissiveTexture=vrTexture;hm.disableLighting=true;hm.backFaceCulling=false;
-vrTextMesh=BABYLON.MeshBuilder.CreatePlane('VR HUD',{width:1.8,height:.31},scene);vrTextMesh.parent=xrHelper.baseExperience.camera;vrTextMesh.position.set(0,.59,-2.2);vrTextMesh.material=hm;vrTextMesh.isPickable=false;vrTextMesh.setEnabled(false);
-$('vrBtn').title='VR verfügbar: Zum Eintreten klicken';
-}catch(err){console.warn('XR initialization',err);$('vrBtn').title='VR-Initialisierung fehlgeschlagen: '+err.message;}}
-async function toggleVR(){if(!navigator.xr||!window.isSecureContext){toast('VR nur im Quest-Browser über HTTPS möglich',3500);return;}
-if(!xrHelper){toast('VR wird geprüft; falls nötig Seite neu laden',2200);await initXR();if(!xrHelper)return;}
-try{if(vrActive)await xrHelper.baseExperience.exitXRAsync();else{if(!state.playing)newGame();setCameraMode('third');await xrHelper.baseExperience.enterXRAsync('immersive-vr','local-floor');}}catch(err){console.error(err);toast('VR-Start fehlgeschlagen: '+(err?.message||'Quest-Browser prüfen'),4500);}}
-$('vrBtn').onclick=toggleVR;
-scene.onPointerDown=()=>{};
-// Initial scene remains animated behind the start dialog.
-buildStage();updateHUD();
-engine.runRenderLoop(()=>{tick(engine.getDeltaTime()/1000);scene.render();});
-window.addEventListener('resize',()=>engine.resize());
-window.addEventListener('error',e=>{console.error(e.error||e.message);toast('JavaScript-Fehler: '+e.message,5000);});
-initXR();
+for(const btn of document.querySelectorAll('[data-key]')){const key=btn.dataset.key;btn.addEventListener('pointerdown',e=>{e.preventDefault();btn.setPointerCapture(e.pointerId);if(key==='camera')cameraToggle();else touch.add(key);});for(const evt of ['pointerup','pointercancel','lostpointercapture'])btn.addEventListener(evt,()=>touch.delete(key));}
+window.addEventListener('error',e=>{setStatus('Programmfehler: '+e.message,true);toast('FEHLER: '+e.message,7000);});
+setStatus('Spiel bereit · ohne externe Bibliotheken');buildStage();updateHUD();requestAnimationFrame(animate);
 })();
-</script>
-</body>
-</html>
+
+</script></body></html>
